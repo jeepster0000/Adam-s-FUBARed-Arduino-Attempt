@@ -1,0 +1,615 @@
+
+#include <elapsedMillis.h>
+
+#include <Encoder.h>
+
+
+/*
+  This code links a rotary encoder to the NAV1 OBS. If you turn the
+  encoder quickly, the bug changes quickly and you have fast control; if
+  you turn the encoder slowly, the bug changes slowly and you have fine
+  control.
+
+  This is an extension (and substantial rewrite) of the plain encoder-
+  reading code from before.
+*/
+
+
+// Input from hardware
+//Main encoder for Com 1 small dial (Hz)
+Encoder Com1EncSm(7, 8); // encoder on pins 7 and 8
+short Com1EncSmPosition = 0;
+long Com1EncSmPrevious = 0;
+elapsedMillis Com1EncSmClickInterval = 0;
+
+//Encoder for Com 1 large dial (MHz)
+Encoder Com1EncLg(9,10);//2nd encoder on pins 9 and 10
+short Com1EncLgPosition =0;
+long Com1EncLgPrevious = 0;
+elapsedMillis Com1EncLgClickInterval = 0;
+
+//Main encoder for Heading Bug
+Encoder HeadingBug(11, 12); // encoder on pins 11 and 12
+short HeadingBugPosition = 0;
+long HeadingBugPrevious = 0;
+elapsedMillis HeadingBugClickInterval = 0;
+
+//Positoin Encoder
+//This is to be switched out with a multi position swith later on.
+Encoder positionEncoder(5,6);//test wheel on pins 5/6
+long PosEncPrevious = 0;
+long PosEncInterval = 0;
+
+//Main encoder for Nav 1 small dial (Hz)
+Encoder Nav1Sm(26, 27); // encoder on pins 26 and 27
+short Nav1SmPosition = 0;
+long Nav1SmPrevious = 0;
+elapsedMillis Nav1SmClickInterval = 0;
+
+//Encoder for Nav 1 large dial (MHz)
+Encoder Nav1Lg(24,25);//2nd encoder on pins 24 and 25
+short Nav1LgPosition =0;
+long Nav1LgPrevious = 0;
+elapsedMillis Nav1LgClickInterval = 0;
+
+// Input/Output with simulator
+FlightSimFloat Com1EnDataref;
+FlightSimFloat Nav1OBSDataref;
+FlightSimFloat Nav2OBSDataref;
+FlightSimInteger Com1HzDataref;
+FlightSimFloat Com1MhzDataref;
+FlightSimFloat Com1SbHzDataref;
+FlightSimFloat Com1SbMhzDataref;
+FlightSimFloat Com2HzDataref;
+FlightSimFloat Com2MhzDataref;
+FlightSimFloat Nav1HzDataref;
+FlightSimFloat Nav1MhzDataref;
+FlightSimFloat Nav2HzDataref;
+FlightSimFloat Nav2MhzDataref;
+FlightSimFloat HeadingBugDataref;
+
+
+
+
+
+//Position Encoder
+
+long encoder_prev=0;    // for detecting rotary position change
+elapsedMillis inactivityTimeout;// an inactivity timeout
+
+void setup() {
+  
+  Nav1OBSDataref =  XPlaneRef("sim/cockpit2/radios/actuators/nav1_obs_deg_mag_pilot");
+  Nav2OBSDataref =  XPlaneRef("sim/cockpit2/radios/actuators/nav2_obs_deg_mag_pilot");
+  Com1HzDataref = XPlaneRef("sim/cockpit2/radios/actuators/com1_frequency_hz_833");
+  Com1MhzDataref = XPlaneRef("sim/cockpit2/radios/actuators/com1_frequency_Mhz");
+  Com1SbHzDataref = XPlaneRef("sim/cockpit2/radios/actuators/com1_standby_frequency_hz");
+  Com1SbMhzDataref = XPlaneRef("sim/cockpit2/radios/actuators/com1_standby_frequency_Mhz");
+  Com2HzDataref = XPlaneRef("sim/cockpit2/radios/actuators/com2_frequency_hz");
+  Com2MhzDataref = XPlaneRef("sim/cockpit2/radios/actuators/com2_frequency_Mhz");
+  Nav1HzDataref = XPlaneRef("sim/cockpit2/radios/actuators/nav1_frequency_hz");
+  Nav1MhzDataref = XPlaneRef("sim/cockpit2/radios/actuators/nav1_frequency_Mhz");
+  Nav2HzDataref = XPlaneRef("sim/cockpit2/radios/actuators/nav2_frequency_hz");
+  Nav2MhzDataref = XPlaneRef("sim/cockpit2/radios/actuators/nav2_frequency_Mhz");
+  HeadingBugDataref = XPlaneRef("sim/cockpit/autopilot/heading_mag");
+  
+  Com1EnDataref = XPlaneRef("sim/cockpit2/radios/actuators/nav1_obs_deg_mag_pilot");
+ // initialize serial communication at 9600 bits per second:
+  
+  Serial.begin(9600);
+}
+
+
+long getCom1EncSm(short Com1SmMultiplier1, short Com1SmMultiplier2) {
+  long Com1SmcurrVal = Com1EncSm.read();
+  long Com1SmretVal = 0;
+  //Serial.println("multiplier1 value is ");//,getCom1EncSm);
+ // Serial.print(multiplier1);
+ // Serial.println("multiplier2 value is ");
+ // Serial.print(multiplier2);
+  if(Com1SmcurrVal != Com1EncSmPrevious && Com1SmcurrVal!=0 && Com1EncSmClickInterval>30) {
+    Com1SmretVal = Com1SmcurrVal - Com1EncSmPrevious;
+    if(Com1EncSmClickInterval<50)
+      Com1SmretVal = Com1SmretVal * Com1SmMultiplier1;
+    else if(Com1EncSmClickInterval<75) //raise this to get "faster" behavior more often
+      Com1SmretVal = Com1SmretVal * Com1SmMultiplier2;
+    Serial.print("value ");  
+    Serial.println(Com1SmretVal);
+    Serial.print("interval ");
+    Serial.println(Com1EncSmClickInterval);
+    Com1EncSmClickInterval = 0;
+    Com1EncSmPosition = 0;
+    //Com1EncSm.write(0);
+  }
+  else
+  {
+    Com1SmcurrVal=0;
+    Com1EncSm.write(0);
+    //Serial.print("Primary Enc Small Com1EncSm)= ");
+    //Serial.print(Com1EncSm);
+    }
+  Com1EncSmPrevious=Com1SmcurrVal;
+  
+  return Com1SmretVal;
+}
+
+long getCom1EncLg(short Com1LgMultiplier1, short Com1LgMultiplier2) {
+  long Com1LgcurrVal = Com1EncLg.read();
+  long Com1LgretVal = 0;
+  if(Com1LgcurrVal != Com1EncLgPrevious && Com1LgcurrVal!=0 && Com1EncSmClickInterval>30) {
+    Com1LgretVal = Com1LgcurrVal - Com1EncLgPrevious;
+    Serial.print("The Click Interval value is less than 30 ");
+    Serial.println("Com1Lg Ret Val = ");
+    Serial.print(" Com1Lg CurrVal = ");
+    Serial.println(Com1LgretVal);
+    Serial.print(" Com1EncLgPrevious = ");
+    Serial.println(Com1EncLgPrevious);
+    
+    if(Com1EncSmClickInterval<50){
+    Serial.print("The Click Interval value is less than 50 ");
+    Serial.print(" retVal before = ");
+    Serial.println(Com1LgretVal);
+    Com1LgretVal = Com1LgretVal * Com1LgMultiplier1;
+    Serial.print(" retVal After multiplier =");
+    Serial.println(Com1LgretVal);
+    }
+    else if(Com1EncSmClickInterval<75){ //raise this to get "faster" behavior more often
+      Com1LgretVal = Com1LgretVal * Com1LgMultiplier2;
+    /*Serial.print("value ");  
+    Serial.println(retVal);
+    Serial.print("interval ");
+    Serial.println(Com1EncSmClickInterval);*/
+    Com1EncLgClickInterval = 0;
+    //encoder2Previous = 0;
+    //Com1EncSm.write(0);
+    }
+  }
+  else
+  {
+    Com1LgcurrVal=0;
+    Com1EncLg.write(0);
+  }
+  Com1EncLgPrevious=Com1LgcurrVal;
+  
+  return Com1LgretVal;
+}
+//Nav 1 copied com 1
+long getNav1Sm(short Nav1SmMultiplier1, short Nav1SmMultiplier2) {
+  long Nav1SmcurrVal = Nav1Sm.read();
+  long Nav1SmretVal = 0;
+  //Serial.println("multiplier1 value is ");//,getNav1Sm);
+ // Serial.print(multiplier1);
+ // Serial.println("multiplier2 value is ");
+ // Serial.print(multiplier2);
+  if(Nav1SmcurrVal != Nav1SmPrevious && Nav1SmcurrVal!=0 && Nav1SmClickInterval>30) {
+    Nav1SmretVal = Nav1SmcurrVal - Nav1SmPrevious;
+    if(Nav1SmClickInterval<50)
+      Nav1SmretVal = Nav1SmretVal * Nav1SmMultiplier1;
+    else if(Nav1SmClickInterval<75) //raise this to get "faster" behavior more often
+      Nav1SmretVal = Nav1SmretVal * Nav1SmMultiplier2;
+    Serial.print("value ");  
+    Serial.println(Nav1SmretVal);
+    Serial.print("interval ");
+    Serial.println(Nav1SmClickInterval);
+    Nav1SmClickInterval = 0;
+    Nav1SmPosition = 0;
+    //Nav1Sm.write(0);
+  }
+  else
+  {
+    Nav1SmcurrVal=0;
+    Nav1Sm.write(0);
+    //Serial.print("Primary Enc Small Nav1Sm)= ");
+    //Serial.print(Nav1Sm);
+    }
+  Nav1SmPrevious=Nav1SmcurrVal;
+  
+  return Nav1SmretVal;
+}
+
+long getNav1Lg(short Nav1LgMultiplier1, short Nav1LgMultiplier2) {
+  long Nav1LgcurrVal = Nav1Lg.read();
+  long Nav1LgretVal = 0;
+  if(Nav1LgcurrVal != Nav1LgPrevious && Nav1LgcurrVal!=0 && Nav1LgClickInterval>30) {
+    Nav1LgretVal = Nav1LgcurrVal - Nav1LgPrevious;
+    Serial.print("The Click Interval value is less than 30 ");
+    Serial.println("Ret Val = ");
+    Serial.print(" CurrVal = ");
+    Serial.println(Nav1LgretVal);
+    Serial.print(" Nav1LgPrevious = ");
+    Serial.println(Nav1LgPrevious);
+    
+    if(Nav1LgClickInterval<50){
+    Serial.print("The Click Interval value is less than 50 ");
+    Serial.print(" retVal before = ");
+    Serial.println(Nav1LgretVal);
+    Nav1LgretVal = Nav1LgretVal * Nav1LgMultiplier1;
+    Serial.print(" retVal After multiplier =");
+    Serial.println(Nav1LgretVal);
+    }
+    else if(Nav1LgClickInterval<75){ //raise this to get "faster" behavior more often
+      Nav1LgretVal = Nav1LgretVal * Nav1LgMultiplier2;
+    /*Serial.print("value ");  
+    Serial.println(retVal);
+    Serial.print("interval ");
+    Serial.println(Nav1SmClickInterval);*/
+    Nav1LgClickInterval = 0;
+    //encoder2Previous = 0;
+    //Nav1Sm.write(0);
+    }
+  }
+  else
+  {
+    Nav1LgcurrVal=0;
+    Nav1Lg.write(0);
+  }
+  Nav1LgPrevious=Nav1LgcurrVal;
+  
+  return Nav1LgretVal;
+}
+long getPosEnc() {
+  long PosEnc = positionEncoder.read();
+  long diff = abs(PosEnc - PosEncPrevious);
+  if(diff>3 && (millis() - PosEncInterval  > 30 )) {  
+    PosEncInterval = millis();
+    diff = (PosEnc - PosEncPrevious) / 4;
+    Serial.println(diff);
+    PosEncPrevious = 0;
+    positionEncoder.write(0);
+    return diff;
+  }
+  return 0;
+  }
+  long getHeadingBug(short multiplier1, short multiplier2) {
+  long currVal = HeadingBug.read();
+  long retVal = 0;
+  if(currVal != HeadingBugPrevious && currVal!=0 && HeadingBugClickInterval>20) {
+    retVal = currVal - HeadingBugPrevious;
+    if(HeadingBugClickInterval<50)
+      retVal = retVal * multiplier1;
+    else if(HeadingBugClickInterval<100) //raise this to get "faster" behavior more often
+      retVal = retVal * multiplier2;
+    /*Serial.print("value ");  
+    Serial.println(retVal);
+    Serial.print("interval ");
+    Serial.println(HeadingBugClickInterval);*/
+    HeadingBugClickInterval = 0;
+    HeadingBugPosition = 0;
+    //HeadingBug.write(0);
+  }
+  else
+  {
+    currVal=0;
+    HeadingBug.write(0);
+  }
+  HeadingBugPrevious=currVal;
+  
+  return retVal;
+
+}
+
+
+void loop() {
+
+  // Multi position switch with one input  read the input on analog pin 0:
+  float sensorValue = analogRead(A0);
+  // Convert the analog reading (which goes from 0 - 1023) to a voltage (0 - 5V):
+  float voltage = round(sensorValue/40);
+  // print out the value you read:
+  //Serial.println(voltage);
+
+ FlightSim.update();
+// read the rotary encoder, if it's changed, write to Com1Standby
+  
+  
+
+
+ 
+
+
+ //Com 1 Change
+
+  //Com1EnDataref=Com1HzDataref;
+ FlightSim.update();
+
+  //  find how many clicks the encoder's been turned
+  // (+ve clockwise, -ve anticlockwise, normally)
+  long Com1EnClicks =  getCom1EncSm(50, 10);
+  // when encoder 'clicks' into a new detent:
+  if (Com1EnClicks != 0) {
+   
+    // change in degrees from current stored value (can be <0 )
+    int Com1EnChange = 0;
+
+    // Threshold between FINE and FAST control: 20ms per click
+    if (Com1EncSmClickInterval > 800 || true) {
+      // FINE/slow mode. Change by 1.0 Hz per click.
+      Com1EnChange = Com1EnClicks;
+    } else {
+      // FAST/coarse mode. Change by 5 degrees per click.
+     Com1EnChange = Com1EnClicks * 5.0;
+    }
+    Serial.print("Old ");
+    Serial.println(Com1HzDataref);
+    // new value = current value plus changes
+    long Com1EnNewValue = Com1HzDataref + Com1EnChange;
+
+    // make sure new value is valid (i.e. when moving across 0deg/360deg)
+    //while (Com1EnNewValue  <   118000) Com1EnNewValue += 137000;
+   // while (Com1EnNewValue >= 999.0) Com1EnNewValue -= 360.0;
+
+    // write validated new heading back to dataref
+    Com1HzDataref = Com1EnNewValue;
+    Serial.print("new ");
+    Serial.println(Com1HzDataref);
+    // reset encoder state and interval timer
+    // (only when encoder has 'clicked' into a new detent!)
+    Com1EncSmPosition = 0;
+    Com1EncSm.write(0);
+    //Com1HzDataref.write(0);
+    //Com1EncSmClickInterval = 0;
+    
+  }
+   FlightSim.update();
+
+  //  find how many clicks the encoder's been turned
+  // (+ve clockwise, -ve anticlockwise, normally)
+  short Com1EnClicks2 = (Com1EncLg.read() - Com1EncLgPosition) ;
+
+  // when encoder 'clicks' into a new detent:
+  if (Com1EnClicks2 != 0) {
+
+    // change in degrees from current stored value (can be <0 )
+    float Com1EnChange2 = 0;
+
+    // Threshold between FINE and FAST control: 20ms per click
+    if (Com1EncLgClickInterval > 20) {
+      // FINE/slow mode. Change by 1.0 degrees per click.
+      Com1EnChange2 = Com1EnClicks2/2;
+    } else {
+      // FAST/coarse mode. Change by 5 degrees per click.
+      Com1EnChange2 = Com1EnClicks2 * 1.0;
+    }
+
+    // new value = current value plus changes
+    float Com1EnNewValue2 = Com1MhzDataref + Com1EnChange2;
+
+    // make sure new value is valid (i.e. when moving across 118mhz/136Mhz)
+while (Com1EnNewValue2  <   118) Com1EnNewValue2 = 136;
+while (Com1EnNewValue2 >= 137) Com1EnNewValue2 = 118;
+
+    // write validated new heading back to dataref
+    Com1MhzDataref = Com1EnNewValue2;
+
+    // reset encoder state and interval timer
+    // (only when encoder has 'clicked' into a new detent!)
+    Com1EncLgPosition = 0;
+    Com1EncLg.write(0);
+    //Com1HzDataref.write(0);
+    Com1EncLgClickInterval = 0;
+  }
+//This is the copied and pasted section. lets see if I get errors
+//NAV 1 Change, same as com 1
+//Com1EnDataref=Nav1HzDataref;
+ FlightSim.update();
+
+  //  find how many clicks the encoder's been turned
+  // (+ve clockwise, -ve anticlockwise, normally)
+  long Nav1SmClicks =  getNav1Sm(50, 10);
+  // when encoder 'clicks' into a new detent:
+  if (Nav1SmClicks != 0) {
+   
+    // change in degrees from current stored value (can be <0 )
+    int Nav1SmChange = 0;
+
+    // Threshold between FINE and FAST control: 20ms per click
+    if (Nav1SmClickInterval > 200 || true) {
+      // FINE/slow mode. Change by 1.0 Hz per click.
+      Nav1SmChange = Nav1SmClicks;
+    } else {
+      // FAST/coarse mode. Change by 5 degrees per click.
+     Nav1SmChange = Nav1SmClicks * 5.0;
+    }
+    Serial.print("Old ");
+    Serial.println(Nav1HzDataref);
+    // new value = current value plus changes
+    long Nav1SmNewValue = Nav1HzDataref + Nav1SmChange;
+
+    // make sure new value is valid (i.e. when moving across 0deg/360deg)
+    //while (Nav1NewValue  <   118000) Nav1NewValue += 137000;
+   // while (Nav1NewValue >= 999.0) Nav1NewValue -= 360.0;
+
+    // write validated new heading back to dataref
+    Nav1HzDataref = Nav1SmNewValue;
+    Serial.print("new ");
+    Serial.println(Nav1HzDataref);
+    // reset encoder state and interval timer
+    // (only when encoder has 'clicked' into a new detent!)
+   Nav1SmPosition = 0;
+   Nav1Sm.write(0);
+    //Nav1HzDataref.write(0);
+    //Nav1SmClickInterval = 0;
+    
+  }
+   FlightSim.update();
+
+  //  find how many clicks the encoder's been turned
+  // (+ve clockwise, -ve anticlockwise, normally)
+
+//This is the copied and pasted section. lets see if I get errors
+//NAV 1 Change, same as com 1
+//Com1EnDataref=Nav1MhzDataref;
+ FlightSim.update();
+
+  //  find how many clicks the encoder's been turned
+  // (+ve clockwise, -ve anticlockwise, normally)
+  long Nav1LgClicks =  getNav1Lg(50, 10);
+  // when encoder 'clicks' into a new detent:
+  if (Nav1LgClicks != 0) {
+   
+    // change in degrees from current stored value (can be <0 )
+    float Nav1LgChange = 0;
+
+    // Threshold between FINE and FAST control: 20ms per click
+    if (Nav1LgClickInterval > 20 || true) {
+      // FINE/slow mode. Change by 1.0 Hz per click.
+      Nav1LgChange = Nav1LgClicks *0.1;
+    } else {
+      // FAST/coarse mode. Change by 5 degrees per click.
+     Nav1LgChange = Nav1LgClicks * 1.0;
+    }
+    Serial.print("Old ");
+    Serial.println(Nav1MhzDataref);
+    // new value = current value plus changes
+    long Nav1LgNewValue = Nav1MhzDataref + Nav1LgChange;
+
+    // make sure new value is valid (i.e. when moving across 0deg/360deg)
+    while (Nav1LgNewValue  <   108.00) Nav1LgNewValue += 117.00;
+    while (Nav1LgNewValue >= 118.00) Nav1LgNewValue -= 108.00;
+
+    // write validated new heading back to dataref
+    Nav1MhzDataref = Nav1LgNewValue;
+    Serial.print("new ");
+    Serial.println(Nav1MhzDataref);
+    // reset encoder state and interval timer
+    // (only when encoder has 'clicked' into a new detent!)
+   Nav1LgPosition = 0;
+   Nav1Lg.write(0);
+    //Nav1MhzDataref.write(0);
+    //Nav1LgClickInterval = 0;
+    
+  }
+   FlightSim.update();
+  /*
+   * 
+   * Copied and pasted again  
+  short Nav1LgClicks2 = (Nav1Lg.read() -Nav1LgPosition) ;
+//TEST CODE FOLLOWING THIS LINE
+long Nav1LgEnClicks =  getNav1Lg(50, 10);
+//Test Code before this line
+  // when encoder 'clicks' into a new detent:
+  if (Nav1LgClicks2 != 0) {
+
+    // change in degrees from current stored value (can be <0 )
+    float Nav1LgChange2 = 0;
+
+    // Threshold between FINE and FAST control: 20ms per click
+    if (Nav1LgClickInterval > 800) {
+      // FINE/slow mode. Change by 1.0 degrees per click.
+      Nav1LgChange2 = Nav1LgClicks2 / 5;
+    } else {
+      // FAST/coarse mode. Change by 5 degrees per click.
+      Nav1LgChange2 = Nav1LgClicks2 * 1.0;
+    }
+
+    // new value = current value plus changes
+    float Nav1LgNewValue2 = Nav1MhzDataref + Nav1LgChange2;
+
+    // make sure new value is valid (i.e. when moving across 118mhz/136Mhz)
+while (Nav1LgNewValue2  <   108) Nav1LgNewValue2 = 117;
+while (Nav1LgNewValue2 >= 118) Nav1LgNewValue2 = 108;
+
+    // write validated new heading back to dataref
+    Nav1MhzDataref = Nav1LgNewValue2;
+
+    // reset encoder state and interval timer
+    // (only when encoder has 'clicked' into a new detent!)
+   Nav1LgPosition = 0;
+   Nav1Lg.write(0);
+    //Nav1HzDataref.write(0);
+   Nav1LgClickInterval = 0;
+  }
+ */
+//End of the copied and pasted section, I am expecting errors.
+//This is to test if I can replace a selection.
+
+//**THE FOLLOWING SECTION IS
+//Heading Bug with speed control
+ //if (voltage == 26.00){
+  //Com1EnDataref=Nav1HzDataref;
+ FlightSim.update();
+
+  //  find how many clicks the encoder's been turned
+  // (+ve clockwise, -ve anticlockwise, normally)
+  long HeadingBugClicks =  getHeadingBug(.5 , 5);
+  // when encoder 'clicks' into a new detent:
+  if (HeadingBugClicks != 0) {
+   
+    // change in degrees from current stored value (can be <0 )
+    int HeadingBugChange = 0;
+
+    // Threshold between FINE and FAST control: 20ms per click
+    if (HeadingBugClickInterval > 5 || true) {
+      // FINE/slow mode. Change by 1.0 Hz per click.
+      HeadingBugChange = HeadingBugClicks;
+    } else {
+      // FAST/coarse mode. Change by 5 degrees per click.
+     HeadingBugChange = HeadingBugClicks * 5.0;
+    }
+    Serial.print("Old ");
+    Serial.println(HeadingBugDataref);
+    // new value = current value plus changes
+    long HeadingBugNewValue = HeadingBugDataref + HeadingBugChange;
+
+    // make sure new value is valid (i.e. when moving across 0deg/360deg)
+    //while (HeadingBugNewValue  <   118000) HeadingBugNewValue += 137000;
+   // while (HeadingBugNewValue >= 999.0) HeadingBugNewValue -= 360.0;
+
+    // write validated new heading back to dataref
+    HeadingBugDataref = HeadingBugNewValue;
+    Serial.print("new ");
+    Serial.println(HeadingBugDataref);
+    // reset encoder state and interval timer
+    // (only when encoder has 'clicked' into a new detent!)
+    HeadingBugPosition = 0;
+    HeadingBug.write(0);
+    //Nav1HzDataref.write(0);
+    //HeadingBugClickInterval = 0;
+    
+  }
+   FlightSim.update();
+
+
+
+   //This is a copied and paste section.  I am expecting errors
+/*
+  //  find how many clicks the encoder's been turned
+  // (+ve clockwise, -ve anticlockwise, normally)
+  short Com1EnClicks2 = (Com1EncLg.read() - Com1EncLgPosition) ;
+
+  // when encoder 'clicks' into a new detent:
+  if (Com1EnClicks2 != 0) {
+
+    // change in degrees from current stored value (can be <0 )
+    float Com1EnChange2 = 0;
+
+    // Threshold between FINE and FAST control: 20ms per click
+    if (Com1EncLgClickInterval > 20) {
+      // FINE/slow mode. Change by 1.0 degrees per click.
+      Com1EnChange2 = Com1EnClicks2/2;
+    } else {
+      // FAST/coarse mode. Change by 5 degrees per click.
+      Com1EnChange2 = Com1EnClicks2 * 1.0;
+    }
+
+    // new value = current value plus changes
+    float Com1EnNewValue2 = Com1MhzDataref + Com1EnChange2;
+
+    // make sure new value is valid (i.e. when moving across 118mhz/136Mhz)
+while (Com1EnNewValue2  <   118) Com1EnNewValue2 = 136;
+while (Com1EnNewValue2 >= 137) Com1EnNewValue2 = 118;
+
+    // write validated new heading back to dataref
+    Com1MhzDataref = Com1EnNewValue2;
+
+    // reset encoder state and interval timer
+    // (only when encoder has 'clicked' into a new detent!)
+    Com1EncLgPosition = 0;
+    Com1EncLg.write(0);
+    //Com1HzDataref.write(0);
+    Com1EncLgClickInterval = 0;
+  //}
+}*/
+ 
+  
+}
