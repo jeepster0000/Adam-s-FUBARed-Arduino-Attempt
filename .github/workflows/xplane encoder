@@ -1,0 +1,179 @@
+/*
+  The goal is to use the function without using the encoder.h library
+*/
+ 
+ // Rotary Encoder Inputs
+ // Com 1 HZ input  Coppy this format and use A and B as the inputs
+ int Com1HzA = 7;
+ int Com1HzB = 8;
+ int Com1HzCounter; 
+ int Com1HzCurr;
+ int Com1HzPrev;
+ int Com1HzCurrA;
+ int Com1HzCurrB;
+ int Com1HzPrevA;
+ int Com1HzPrevB;
+ 
+
+//Com 1 Mhz Input
+ int Com1MhzA = 9;
+ int Com1MhzB = 10;
+ int Com1MhzCounter; 
+ int Com1MhzCurr;
+ int Com1MhzPrev; 
+ 
+ //Flight Simulator Inputs
+FlightSimFloat Com1EnDataref;
+FlightSimFloat Nav1OBSDataref;
+FlightSimFloat Nav2OBSDataref;
+FlightSimInteger Com1HzDataref;
+FlightSimFloat Com1MhzDataref;
+FlightSimFloat Com1SbHzDataref;
+FlightSimFloat Com1SbMhzDataref;
+FlightSimFloat Com2HzDataref;
+FlightSimFloat Com2MhzDataref;
+FlightSimFloat Nav1HzDataref;
+FlightSimFloat Nav1MhzDataref;
+FlightSimFloat Nav2HzDataref;
+FlightSimFloat Nav2MhzDataref;
+FlightSimFloat HeadingBugDataref;
+
+ 
+ void setup() { 
+   
+   // Setup and store the flight sim varibles
+   Nav1OBSDataref =  XPlaneRef("sim/cockpit2/radios/actuators/nav1_obs_deg_mag_pilot");
+  Nav2OBSDataref =  XPlaneRef("sim/cockpit2/radios/actuators/nav2_obs_deg_mag_pilot");
+  Com1HzDataref = XPlaneRef("sim/cockpit2/radios/actuators/com1_frequency_hz_833");
+  Com1MhzDataref = XPlaneRef("sim/cockpit2/radios/actuators/com1_frequency_Mhz");
+  Com1SbHzDataref = XPlaneRef("sim/cockpit2/radios/actuators/com1_standby_frequency_hz");
+  Com1SbMhzDataref = XPlaneRef("sim/cockpit2/radios/actuators/com1_standby_frequency_Mhz");
+  Com2HzDataref = XPlaneRef("sim/cockpit2/radios/actuators/com2_frequency_hz");
+  Com2MhzDataref = XPlaneRef("sim/cockpit2/radios/actuators/com2_frequency_Mhz");
+  Nav1HzDataref = XPlaneRef("sim/cockpit2/radios/actuators/nav1_frequency_hz");
+  Nav1MhzDataref = XPlaneRef("sim/cockpit2/radios/actuators/nav1_frequency_Mhz");
+  Nav2HzDataref = XPlaneRef("sim/cockpit2/radios/actuators/nav2_frequency_hz");
+  Nav2MhzDataref = XPlaneRef("sim/cockpit2/radios/actuators/nav2_frequency_Mhz");
+  HeadingBugDataref = XPlaneRef("sim/cockpit/autopilot/heading_mag");
+  //Com1HzCounter = Com1HzDataref+Com1MhzDataref*1000;
+  //Com1MhzCounter = Com1MhzDataref;
+  
+
+  
+   // Set encoder pins as inputs  
+   //with the teensy, if you use INPUT__PULLUP you will get a clean signal and good rotation
+   //this is the code for Com 1 Hz  
+   pinMode (Com1HzA,INPUT_PULLUP);
+   pinMode (Com1HzB,INPUT_PULLUP);
+   // Read the initial state of Com1HzA
+   // Assign to Com1HzPrev variable
+   Com1HzPrev = digitalRead(Com1HzA);
+   Com1HzPrevA = digitalRead(Com1HzA);
+   Com1HzPrevB = digitalRead(Com1HzB);
+   Com1HzDataref = 123456;
+   
+   //Code for Com1 Mhz
+   pinMode (Com1MhzA,INPUT_PULLUP);
+   pinMode (Com1MhzB,INPUT_PULLUP);
+   // Read the initial state of Com1HzA
+   // Assign to Com1HzPrev variable
+   Com1MhzPrev = digitalRead(Com1MhzA);
+   
+   
+   
+  // Setup Serial Monitor
+  Serial.begin (9600);
+  //Update the flight simulator initially
+  FlightSim.update();
+ } 
+ 
+ void loop() { 
+  //This is the Com 1 Hz Code
+  // Read the current state of Com1HzA
+  
+   Com1HzCurr = digitalRead(Com1HzA);
+   Com1HzCurrA =digitalRead(Com1HzA);
+   Com1HzCurrB = digitalRead(Com1HzB);
+   Com1HzCounter = Com1HzDataref; 
+   // If the previous and the current state of the Com1HzA are different then a pulse has occured
+    if(Com1HzCurrA != Com1HzPrevA)
+    {   
+     // If the Com1HzB state is different than the Com1HzA state then 
+     // the encoder is rotating counterclockwise
+     if (Com1HzB != Com1HzCurrA) { 
+       //Com1HzDataref = Com1HzDataref -1;
+       Com1HzCounter --;
+       //Com1HzPrevA = Com1HzCurrA;
+       //Com1HzPrevB = Com1HzCurrB;     
+     } 
+     else //if (Com1HzB == Com1HzCurrA)
+      {
+       // Encoder is rotating clockwise
+       //Com1HzDataref = Com1HzDataref +1;
+       Com1HzCounter --;
+       //Com1HzPrevA = Com1HzCurrA;
+       //Com1HzPrevB = Com1HzCurrB;
+     }
+     Com1HzDataref = Com1HzCounter - 1;  
+   } 
+   /*
+   // Update Com1HzPrev with the current state   
+   //Com1HzPrev = Com1HzCurr;
+   // If the previous and the current state of the Com1HzA are different then a pulse has occured
+    if(Com1HzCurrB !=Com1HzPrevB)
+    {   
+     // If the Com1HzB state is different than the Com1HzA state then 
+     // the encoder is rotating counterclockwise
+     if (Com1HzB != Com1HzCurrA) { 
+       Com1HzDataref = Com1HzDataref +1;
+       Com1HzPrevA = Com1HzCurrA;
+       Com1HzPrevB = Com1HzCurrB;     
+     } 
+     else //if (Com1HzB == Com1HzCurrA)
+      {
+       // Encoder is rotating clockwise
+       Com1HzDataref = Com1HzDataref -1;
+       Com1HzPrevA = Com1HzCurrA;
+       Com1HzPrevB = Com1HzCurrB;
+     }
+     
+     //Com1HzDataref = Com1HzCounter +Com1MhzDataref * 1000;   
+   } 
+   */
+   // Update Com1HzPrev with the current state   
+   //Com1HzPrev = Com1HzCurr;
+   Com1HzPrevA = Com1HzCurrA;
+   Com1HzPrevB = Com1HzCurrB;
+   //End Com 1 Hz Code
+
+   
+//*********************************************************************************
+/*
+//This is the Com 1 MHz Code
+  // Read the current state of Com1MhzA
+   
+   Com1MhzCurr = digitalRead(Com1MhzA);
+    
+   // If the previous and the current state of the Com1MhzA are different then a pulse has occured  
+    
+    if(Com1MhzCurr!= Com1MhzPrev){   
+     // If the Com1MhzB state is different than the Com1MhzA state then 
+     // the encoder is rotating counterclockwise
+     if (digitalRead(Com1MhzB) != Com1MhzCurr) { 
+       Com1MhzCounter --;
+     } else if (digitalRead(Com1MhzB) == Com1MhzCurr)
+      {
+       // Encoder is rotating clockwise
+       Com1MhzCounter ++;
+     }
+      Com1MhzDataref = Com1MhzCounter + Com1HzDataref/1000;
+      //FlightSim.update();
+   } 
+   // Update Com1MhzPrev with the current state
+   
+   Com1MhzPrev = Com1MhzCurr;*/
+   FlightSim.update();
+   
+   //End Com 1 MHz Code
+   
+ }
