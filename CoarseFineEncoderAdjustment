@@ -14,11 +14,9 @@ reading code from before.
 */
  
  
-// Lis
+// These are al the encoders and timer intervals in this section.
 Encoder Nav1OBSEncoder(11, 12); // nav1OBS on 11 12
 short Nav1OBSEncoderPrevious = 0;
- 
-
 elapsedMillis Nav1OBSEncoderClickInterval = 0;
  
 // Input/Output with simulator
@@ -26,6 +24,9 @@ FlightSimFloat Nav1OBSDataref;
 
 //Update if a change has occured
 int ChangeUpdate = 1; 
+//float TestChange;
+short TestValuePrev = 0;
+float TestDataRef=1000;  
  
 void setup() {
   Nav1OBSDataref = XPlaneRef("sim/cockpit2/radios/actuators/nav1_obs_deg_mag_pilot");
@@ -39,7 +40,8 @@ void loop() {
  
   // divide by 4 to find how many clicks the encoder's been turned  This value should be changed based on the encoder type.  
   // (+ve clockwise, -ve anticlockwise, normally)
-  short Nav1OBSClicks = (Nav1OBSEncoder.read());// - Nav1OBSEncoderPrevious) / 4;
+  short Nav1OBSClicks = (Nav1OBSEncoder.read() - Nav1OBSEncoderPrevious) / 1;
+  short TestClicks = Nav1OBSEncoder.read()-TestValuePrev;
  
   // when encoder 'clicks' into a new detent:
   if (Nav1OBSClicks != 0) {
@@ -49,23 +51,32 @@ void loop() {
     
     // change in degrees from current stored value (can be <0 )
     float Nav1OBSChange = 0;
+    float TestChange=0;
  
     // Threshold between FINE and FAST control: 30ms per click  //Change this to get a different threshold time
     if (Nav1OBSEncoderClickInterval > 30) {
       // FINE/slow mode. Change by 0.5 degrees per click.
       Nav1OBSChange = Nav1OBSClicks * 0.5;
       ChangeUpdate = 1;  //used to update the simulator
+
+      TestChange=TestClicks *.5;
+      Serial.print("The encoder moved slow and incremented  ");
+      Serial.println(TestChange);
       //This changes if the elapsed time between clicks is less than 30ms but greater than 1 second.  
       //The 1ms is used to process out noise that happens between clicks and prevent unwanted "bounce"
     } else if (Nav1OBSEncoderClickInterval <=30 && Nav1OBSEncoderClickInterval >1) {
       // FAST/coarse mode. Change by 5 degrees per click.
       Nav1OBSChange = Nav1OBSClicks * 5.0;
       ChangeUpdate=1;
+      TestChange=TestClicks *5.0;
+      Serial.print("The encoder moved fast and incremented  ");
+      Serial.println(TestChange);
     }
  
     // new value = current value plus changes
     float Nav1OBSNewValue = Nav1OBSDataref + Nav1OBSChange;
- 
+    float TestNewValue =TestDataRef+ TestChange;
+  
     // make sure new value is valid (i.e. when moving across 0deg/360deg)
     while (Nav1OBSNewValue  <   0.0) Nav1OBSNewValue += 360.0;
     while (Nav1OBSNewValue >= 360.0) Nav1OBSNewValue -= 360.0;
@@ -79,12 +90,15 @@ void loop() {
     Nav1OBSEncoder.write(0);
     Nav1OBSEncoderClickInterval = 0;
     ChangeUpdate=1;
+    Serial.print("The New Value is  ");
+    Serial.println(TestNewValue);
     
   }
   //code only updates when the value is changed.  This will update on every single value, but it will not update on every loop.
-  if (ChangeUpdate ==1){
+  if (ChangeUpdate >=1){
     FlightSim.update();
     ChangeUpdate=0;
+    
   }
 }
 
