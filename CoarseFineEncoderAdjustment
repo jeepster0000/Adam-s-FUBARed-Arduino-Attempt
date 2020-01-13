@@ -1,3 +1,4 @@
+ 
 #include <Encoder.h>
 #include <elapsedMillis.h>
 
@@ -13,17 +14,18 @@ reading code from before.
 */
  
  
-// Input from hardware
+// Lis
 Encoder Nav1OBSEncoder(11, 12); // nav1OBS on 11 12
 short Nav1OBSEncoderPrevious = 0;
  
+
 elapsedMillis Nav1OBSEncoderClickInterval = 0;
  
 // Input/Output with simulator
 FlightSimFloat Nav1OBSDataref;
 
 //Update if a change has occured
-int ChangeUpdate = 0; 
+int ChangeUpdate = 1; 
  
 void setup() {
   Nav1OBSDataref = XPlaneRef("sim/cockpit2/radios/actuators/nav1_obs_deg_mag_pilot");
@@ -76,11 +78,13 @@ void loop() {
     Nav1OBSEncoderPrevious = 0;
     Nav1OBSEncoder.write(0);
     Nav1OBSEncoderClickInterval = 0;
+    ChangeUpdate=1;
     
   }
   //code only updates when the value is changed.  This will update on every single value, but it will not update on every loop.
-  if (ChangeUpdate >=0){
+  if (ChangeUpdate ==1){
     FlightSim.update();
     ChangeUpdate=0;
   }
 }
+
