@@ -1,0 +1,86 @@
+#include <Encoder.h>
+#include <elapsedMillis.h>
+
+ 
+/*
+This code links a rotary encoder to the NAV1 OBS. If you turn the
+encoder quickly, the bug changes quickly and you have fast control; if
+you turn the encoder slowly, the bug changes slowly and you have fine
+control.
+ 
+This is an extension (and substantial rewrite) of the plain encoder-
+reading code from before.
+*/
+ 
+ 
+// Input from hardware
+Encoder Nav1OBSEncoder(11, 12); // nav1OBS on 11 12
+short Nav1OBSEncoderPrevious = 0;
+ 
+elapsedMillis Nav1OBSEncoderClickInterval = 0;
+ 
+// Input/Output with simulator
+FlightSimFloat Nav1OBSDataref;
+
+//Update if a change has occured
+int ChangeUpdate = 0; 
+ 
+void setup() {
+  Nav1OBSDataref = XPlaneRef("sim/cockpit2/radios/actuators/nav1_obs_deg_mag_pilot");
+  FlightSim.update();
+  
+}
+ 
+ 
+void loop() {
+  
+ 
+  // divide by 4 to find how many clicks the encoder's been turned  This value should be changed based on the encoder type.  
+  // (+ve clockwise, -ve anticlockwise, normally)
+  short Nav1OBSClicks = (Nav1OBSEncoder.read() - Nav1OBSEncoderPrevious) / 4;
+ 
+  // when encoder 'clicks' into a new detent:
+  if (Nav1OBSClicks != 0) {
+    
+    //test to see if I can put this code here with the same result
+    //elapsedMillis Nav1OBSEncoderClickInterval = 0;
+    
+    // change in degrees from current stored value (can be <0 )
+    float Nav1OBSChange = 0;
+ 
+    // Threshold between FINE and FAST control: 30ms per click  //Change this to get a different threshold time
+    if (Nav1OBSEncoderClickInterval > 30) {
+      // FINE/slow mode. Change by 0.5 degrees per click.
+      Nav1OBSChange = Nav1OBSClicks * 0.5;
+      ChangeUpdate = 1;  //used to update the simulator
+      //This changes if the elapsed time between clicks is less than 30ms but greater than 1 second.  
+      //The 1ms is used to process out noise that happens between clicks and prevent unwanted "bounce"
+    } else if (Nav1OBSEncoderClickInterval <=30 && Nav1OBSEncoderClickInterval >1) {
+      // FAST/coarse mode. Change by 5 degrees per click.
+      Nav1OBSChange = Nav1OBSClicks * 5.0;
+      ChangeUpdate=1;
+    }
+ 
+    // new value = current value plus changes
+    float Nav1OBSNewValue = Nav1OBSDataref + Nav1OBSChange;
+ 
+    // make sure new value is valid (i.e. when moving across 0deg/360deg)
+    while (Nav1OBSNewValue  <   0.0) Nav1OBSNewValue += 360.0;
+    while (Nav1OBSNewValue >= 360.0) Nav1OBSNewValue -= 360.0;
+ 
+    // write validated new heading back to dataref
+    Nav1OBSDataref = Nav1OBSNewValue;
+ 
+    // reset encoder state and interval timer
+    // (only when encoder has 'clicked' into a new detent!)
+    Nav1OBSEncoderPrevious = 0;
+    Nav1OBSEncoder.write(0);
+    Nav1OBSEncoderClickInterval = 0;
+    
+  }
+  //code only updates when the value is changed.  This will update on every single value, but it will not update on every loop.
+  if (ChangeUpdate >=0){
+    FlightSim.update();
+    ChangeUpdate=0;
+  }
+}
