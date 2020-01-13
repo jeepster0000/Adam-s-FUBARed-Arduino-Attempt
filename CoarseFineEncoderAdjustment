@@ -39,7 +39,7 @@ void loop() {
  
   // divide by 4 to find how many clicks the encoder's been turned  This value should be changed based on the encoder type.  
   // (+ve clockwise, -ve anticlockwise, normally)
-  short Nav1OBSClicks = (Nav1OBSEncoder.read() - Nav1OBSEncoderPrevious) / 4;
+  short Nav1OBSClicks = (Nav1OBSEncoder.read());// - Nav1OBSEncoderPrevious) / 4;
  
   // when encoder 'clicks' into a new detent:
   if (Nav1OBSClicks != 0) {
