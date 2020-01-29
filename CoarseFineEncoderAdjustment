@@ -12,24 +12,53 @@ control.
 This is an extension (and substantial rewrite) of the plain encoder-
 reading code from before.
 */
- 
+
+
+/*  **********************************************************
+********************Notes*********************************
+If incoder does not spin the correct way, then reverse the encoder.
+Copy and paste fron Nav 2 OBS.  This does not have the testing criteria
+ */
  
 // These are al the encoders and timer intervals in this section.
-Encoder Nav1OBSEncoder(11, 12); // nav1OBS on 11 12
+//Nav 1 OBS Encoder
+Encoder Nav1OBSEncoder(9, 10); // nav1OBS on 11 12
 short Nav1OBSEncoderPrevious = 0;
 elapsedMillis Nav1OBSEncoderClickInterval = 0;
- 
+
+// Nav 2 OBS Encoder
+Encoder Nav2OBSEncoder(11, 12); // nav2OBS on 9 10 
+short Nav2OBSEncoderPrevious = 0;
+elapsedMillis Nav2OBSEncoderClickInterval = 0; 
+
+// Altimiter  Encoder
+Encoder AltEncoder(8, 7); // Altimiter / baramoter on 8 7 
+short AltEncoderPrevious = 0;
+elapsedMillis AltEncoderClickInterval = 0; 
+
+// Heading Bug Encoder
+Encoder HeadingBugEncoder(6, 5); // Heading Bug on 5 6 
+short HeadingBugEncoderPrevious = 0;
+elapsedMillis HeadingBugEncoderClickInterval = 0; 
+
 // Input/Output with simulator
 FlightSimFloat Nav1OBSDataref;
+FlightSimFloat Nav2OBSDataref;
+FlightSimFloat AltDataref;
+FlightSimFloat HeadingBugDataref;
 
-//Update if a change has occured
-int ChangeUpdate = 1; 
-//float TestChange;
-short TestValuePrev = 0;
-float TestDataRef=1000;  
+
+
+
+//Testing Values
+//short TestValuePrev = 0;
+//float TestDataRef=1000;  
  
 void setup() {
   Nav1OBSDataref = XPlaneRef("sim/cockpit2/radios/actuators/nav1_obs_deg_mag_pilot");
+  Nav2OBSDataref = XPlaneRef("sim/cockpit2/radios/actuators/nav2_obs_deg_mag_pilot");
+  AltDataref = XPlaneRef("sim/cockpit/misc/barometer_setting");
+  HeadingBugDataref = XPlaneRef("sim/cockpit2/autopilot/heading_dial_deg_mag_pilot");
   FlightSim.update();
   
 }
@@ -37,45 +66,48 @@ void setup() {
  
 void loop() {
   
- 
+ //***
+ //Nav 1 OBS 
+ //***
   // divide by 4 to find how many clicks the encoder's been turned  This value should be changed based on the encoder type.  
   // (+ve clockwise, -ve anticlockwise, normally)
-  short Nav1OBSClicks = (Nav1OBSEncoder.read() - Nav1OBSEncoderPrevious) / 1;
-  short TestClicks = Nav1OBSEncoder.read()-TestValuePrev;
+  short Nav1OBSClicks = (Nav1OBSEncoder.read() - Nav1OBSEncoderPrevious) / 4;
+  //short TestClicks = (Nav1OBSEncoder.read()-TestValuePrev)/4;//For Testing only 
  
   // when encoder 'clicks' into a new detent:
   if (Nav1OBSClicks != 0) {
+      //if (TestClicks !=0){//For Testing only 
     
-    //test to see if I can put this code here with the same result
-    //elapsedMillis Nav1OBSEncoderClickInterval = 0;
     
     // change in degrees from current stored value (can be <0 )
     float Nav1OBSChange = 0;
-    float TestChange=0;
+     //float TestChange=0;//For Testing only 
  
-    // Threshold between FINE and FAST control: 30ms per click  //Change this to get a different threshold time
+    // Threshold between FINE and FAST control: 30ms per click  
+    //Change this to get a different threshold time  Must change in 2 spots
     if (Nav1OBSEncoderClickInterval > 30) {
       // FINE/slow mode. Change by 0.5 degrees per click.
       Nav1OBSChange = Nav1OBSClicks * 0.5;
-      ChangeUpdate = 1;  //used to update the simulator
+      
+       //TestChange=TestClicks *.5;//For Testing only 
+       //Serial.print("The encoder moved slow and incremented  ");//For Testing only 
+       //Serial.println(TestChange);//For Testing only 
 
-      TestChange=TestClicks *.5;
-      Serial.print("The encoder moved slow and incremented  ");
-      Serial.println(TestChange);
-      //This changes if the elapsed time between clicks is less than 30ms but greater than 1 second.  
+      
+      //This changes if the elapsed time between clicks is less than 30ms but greater than 1 milisecond.  
       //The 1ms is used to process out noise that happens between clicks and prevent unwanted "bounce"
     } else if (Nav1OBSEncoderClickInterval <=30 && Nav1OBSEncoderClickInterval >1) {
       // FAST/coarse mode. Change by 5 degrees per click.
       Nav1OBSChange = Nav1OBSClicks * 5.0;
-      ChangeUpdate=1;
-      TestChange=TestClicks *5.0;
-      Serial.print("The encoder moved fast and incremented  ");
-      Serial.println(TestChange);
+      
+      //TestChange=TestClicks *5.0;//For Testing only 
+       //Serial.print("The encoder moved fast and incremented  ");//For Testing only 
+       //Serial.println(TestChange);//For Testing only 
     }
  
     // new value = current value plus changes
     float Nav1OBSNewValue = Nav1OBSDataref + Nav1OBSChange;
-    float TestNewValue =TestDataRef+ TestChange;
+     //float TestNewValue =TestDataRef+ TestChange;//For Testing only 
   
     // make sure new value is valid (i.e. when moving across 0deg/360deg)
     while (Nav1OBSNewValue  <   0.0) Nav1OBSNewValue += 360.0;
@@ -83,22 +115,158 @@ void loop() {
  
     // write validated new heading back to dataref
     Nav1OBSDataref = Nav1OBSNewValue;
+    //TestDataRef = TestNewValue;//For Testing only 
  
     // reset encoder state and interval timer
     // (only when encoder has 'clicked' into a new detent!)
     Nav1OBSEncoderPrevious = 0;
     Nav1OBSEncoder.write(0);
     Nav1OBSEncoderClickInterval = 0;
-    ChangeUpdate=1;
-    Serial.print("The New Value is  ");
-    Serial.println(TestNewValue);
     
+   //Serial.print("The New Value is  ");//For Testing only 
+    //Serial.println(TestDataRef);//For Testing only   
   }
-  //code only updates when the value is changed.  This will update on every single value, but it will not update on every loop.
-  if (ChangeUpdate >=1){
-    FlightSim.update();
-    ChangeUpdate=0;
-    
-  }
-}
 
+  //***
+ //Nav 2 OBS 
+ //***
+  // divide by 4 to find how many clicks the encoder's been turned  This value should be changed based on the encoder type.  
+  // (+ve clockwise, -ve anticlockwise, normally)
+  short Nav2OBSClicks = (Nav2OBSEncoder.read() - Nav2OBSEncoderPrevious) / 4;
+  
+ 
+  // when encoder 'clicks' into a new detent:
+  if (Nav2OBSClicks != 0) {
+    
+    // change in degrees from current stored value (can be <0 )
+    float Nav2OBSChange = 0; 
+ 
+    // Threshold between FINE and FAST control: 30ms per click  
+    //Change this to get a different threshold time  Must change in 2 spots
+    if (Nav2OBSEncoderClickInterval > 30) {
+      // FINE/slow mode. Change by 0.5 degrees per click.
+      Nav2OBSChange = Nav2OBSClicks * 0.5;
+
+      
+      //This changes if the elapsed time between clicks is less than 30ms but greater than 1 milisecond.  
+      //The 1ms is used to process out noise that happens between clicks and prevent unwanted "bounce"
+    } else if (Nav2OBSEncoderClickInterval <=30 && Nav2OBSEncoderClickInterval >1) {
+      // FAST/coarse mode. Change by 5 degrees per click.
+      Nav2OBSChange = Nav2OBSClicks * 5.0;
+      
+    }
+ 
+    // new value = current value plus changes
+    float Nav2OBSNewValue = Nav2OBSDataref + Nav2OBSChange;
+  
+    // make sure new value is valid (i.e. when moving across 0deg/360deg)
+    while (Nav2OBSNewValue  <   0.0) Nav2OBSNewValue += 360.0;
+    while (Nav2OBSNewValue >= 360.0) Nav2OBSNewValue -= 360.0;
+ 
+    // write validated new heading back to dataref
+    Nav2OBSDataref = Nav2OBSNewValue;
+ 
+    // reset encoder state and interval timer
+    // (only when encoder has 'clicked' into a new detent!)
+    Nav2OBSEncoderPrevious = 0;
+    Nav2OBSEncoder.write(0);
+    Nav2OBSEncoderClickInterval = 0;
+    
+  }
+
+  //***
+ //Altimiter Dial
+ //***
+  // divide by 4 to find how many clicks the encoder's been turned  This value should be changed based on the encoder type.  
+  // (+ve clockwise, -ve anticlockwise, normally)
+  short AltClicks = (AltEncoder.read() - AltEncoderPrevious) / 4;
+  
+ 
+  // when encoder 'clicks' into a new detent:
+  if (AltClicks != 0) {
+    
+    // change in degrees from current stored value (can be <0 )
+    float AltChange = 0; 
+ 
+    // Threshold between FINE and FAST control: 30ms per click  
+    //Change this to get a different threshold time  Must change in 2 spots
+    //if (AltEncoderClickInterval > 30) {
+      // FINE/slow mode. Change by 0.5 degrees per click.
+      AltChange = AltClicks * 0.01;
+
+      
+      //This changes if the elapsed time between clicks is less than 30ms but greater than 1 milisecond.  
+      //The 1ms is used to process out noise that happens between clicks and prevent unwanted "bounce"
+   /* } else if (AltEncoderClickInterval <=30 && AltEncoderClickInterval >1) {
+      // FAST/coarse mode. Change by 5 degrees per click.
+      AltChange = AltClicks * 0.1;
+      
+    }*/
+ 
+    // new value = current value plus changes
+    float AltNewValue = AltDataref + AltChange;
+  
+    // make sure new value is valid (i.e. the baromter / altimiter cannot be <29.0 or >30.8)
+    while (AltNewValue  <   29.00) AltNewValue = 29.00;
+    while (AltNewValue > 30.80) AltNewValue = 30.80;
+ 
+    // write validated new heading back to dataref
+    AltDataref = AltNewValue;
+ 
+    // reset encoder state and interval timer
+    // (only when encoder has 'clicked' into a new detent!)
+    AltEncoderPrevious = 0;
+    AltEncoder.write(0);
+    AltEncoderClickInterval = 0;   
+  }
+
+    //***
+ //Heading Bug
+ //***
+  // divide by 4 to find how many clicks the encoder's been turned  This value should be changed based on the encoder type.  
+  // (+ve clockwise, -ve anticlockwise, normally)
+  short HeadingBugClicks = (HeadingBugEncoder.read() - HeadingBugEncoderPrevious) / 4;
+  
+ 
+  // when encoder 'clicks' into a new detent:
+  if (HeadingBugClicks != 0) {
+    
+    // change in degrees from current stored value (can be <0 )
+    float HeadingBugChange = 0; 
+ 
+    // Threshold between FINE and FAST control: 30ms per click  
+    //Change this to get a different threshold time  Must change in 2 spots
+    if (HeadingBugEncoderClickInterval > 30) {
+      // FINE/slow mode. Change by 0.5 degrees per click.
+      HeadingBugChange = HeadingBugClicks * 0.5;
+
+      
+      //This changes if the elapsed time between clicks is less than 30ms but greater than 1 milisecond.  
+      //The 1ms is used to process out noise that happens between clicks and prevent unwanted "bounce"
+    } else if (HeadingBugEncoderClickInterval <=30 && HeadingBugEncoderClickInterval >1) {
+      // FAST/coarse mode. Change by 5 degrees per click.
+      HeadingBugChange = HeadingBugClicks * 5.0;
+      
+    }
+ 
+    // new value = current value plus changes
+    float HeadingBugNewValue = HeadingBugDataref + HeadingBugChange;
+  
+    // make sure new value is valid (i.e. when moving across 0deg/360deg)
+    while (HeadingBugNewValue  <   0.0) HeadingBugNewValue += 360.0;
+    while (HeadingBugNewValue >= 360.0) HeadingBugNewValue -= 360.0;
+ 
+    // write validated new heading back to dataref
+    HeadingBugDataref = HeadingBugNewValue;
+ 
+    // reset encoder state and interval timer
+    // (only when encoder has 'clicked' into a new detent!)
+    HeadingBugEncoderPrevious = 0;
+    HeadingBugEncoder.write(0);
+    HeadingBugEncoderClickInterval = 0; 
+  }
+    FlightSim.update();
+    
+ 
+    
+}
